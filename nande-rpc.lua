@@ -1,6 +1,6 @@
 -- nande-rpc.lua
 -- by German S.
--- A cross-platform Discord Rich Presence script for mpv using the Discord IPC protocol.
+-- A cross-platform Discord Rich Presence script for mpv (and Plex Desktop!) using the Discord IPC protocol.
 
 local mp = require("mp")
 local utils = require("mp.utils")
@@ -8,7 +8,11 @@ local msg = require("mp.msg")
 local bit = require("bit")
 local ffi = require("ffi")
 
-local CLIENT_ID = "737663962677510245" -- from https://github.com/tnychn/mpv-discord, ideally replace with your own
+local CLIENT_IDS = {
+    mpv  = "737663962677510245",  -- from https://github.com/tnychn/mpv-discord, ideally replace with your own
+    plex = "1479251045799694486",
+}
+local active_client_id = nil  -- tracks which client ID we handshook with
 local is_windows = package.config:sub(1,1) == '\\'
 
 local win_handle = nil
@@ -172,6 +176,8 @@ local function send_msg(opcode, payload)
     end
 end
 
+local disconnect  -- forward declaration
+
 local function draw_ascii_progress_bar(current, total, width)
     local progress = math.floor((current / total) * width)
     return "[" .. string.rep("=", progress) .. string.rep(" ", width - progress) .. "]"
@@ -180,9 +186,58 @@ end
 local function update_presence()
     local connected = (is_windows and win_handle ~= nil) or (not is_windows and fd >= 0)
     
+    -- Determine if Audio or Video by checking if a Video track ID exists
+    local vid = mp.get_property("vid")
+    local is_video = (vid and vid ~= "no")
+    
+    local time_pos = mp.get_property_number("time-pos")
+    local pause = mp.get_property_bool("pause")
+    
+    local details_str = nil
+    local state_str = nil
+    local is_plex = false
+
+    -- 1. Try to get native Plex rich metadata first
+    local plex_data_str = mp.get_property("user-data/plex/playing-media")
+    if plex_data_str and plex_data_str ~= "" then
+        local obj = utils.parse_json(plex_data_str)
+        if obj and obj.decision and obj.decision.metadataItem then
+            local meta = obj.decision.metadataItem
+            if meta.type == "episode" then
+                details_str = meta.grandparentTitle or "Unknown Show"
+                local season = meta.parentIndex or 0
+                local episode = meta.index or 0
+                local ep_title = meta.title or "Unknown Episode"
+                state_str = string.format("S%02dE%02d - %s", season, episode, ep_title)
+            elseif meta.type == "movie" then
+                details_str = (meta.title or "Unknown Movie") .. (meta.year and (" (" .. meta.year .. ")") or "")
+                state_str = "Watching Movie"
+            elseif meta.type == "track" then
+                details_str = meta.title or "Unknown Track"
+                state_str = "by " .. (meta.grandparentTitle or meta.originalTitle or meta.titleSort or "Unknown Artist")
+            else
+                details_str = meta.title or "Plex Media"
+                state_str = is_video and "Watching" or "Listening"
+            end
+            is_plex = true
+        end
+    end
+
+    -- Pick the right client ID based on whether Plex metadata was found
+    local desired_client_id = is_plex and CLIENT_IDS.plex or CLIENT_IDS.mpv
+
+    -- If we're connected but with the wrong client ID, disconnect and reconnect
+    if connected and active_client_id ~= desired_client_id then
+        debug_log("Switching client ID from %s to %s", active_client_id or "none", desired_client_id)
+        disconnect()
+        handshake_sent = false
+        connected = false
+    end
+
     if not connected then
         if connect_discord() then
-            send_msg(0, { v = 1, client_id = CLIENT_ID })
+            active_client_id = desired_client_id
+            send_msg(0, { v = 1, client_id = desired_client_id })
             handshake_sent = true
         end
         return
@@ -191,37 +246,49 @@ local function update_presence()
     read_discord_pipe()
     if not handshake_sent then return end
 
-    -- Determine if Audio or Video by checking if a Video track ID exists
-    local vid = mp.get_property("vid")
-    local is_video = (vid and vid ~= "no")
+    -- 2. Fallback to standard mpv properties
+    if not details_str or not state_str then
+        details_str = mp.get_property("media-title") or "Unknown Media"
+        
+        -- Strip query parameters from title fallback
+        local lower_title = details_str:lower()
+        if lower_title:find("x%-plex%-") then
+            local q_idx = details_str:find("?", 1, true)
+            if q_idx then
+                details_str = details_str:sub(1, q_idx - 1)
+            end
+            local meta_title = mp.get_property("metadata/by-key/title") or mp.get_property("metadata/by-key/TITLE")
+            if meta_title and meta_title ~= "" then
+                details_str = meta_title
+            end
+        end
+
+        local artist = mp.get_property("metadata/by-key/ARTIST") or 
+                       mp.get_property("metadata/by-key/artist") or 
+                       mp.get_property("metadata/by-key/Artist")
+                       
+        state_str = is_video and "Watching" or "Listening"
+        if artist then
+            state_str = "by " .. artist:sub(1, 100)
+        end
+    end
     
-    local title = mp.get_property("media-title") or "Unknown Media"
-    local artist = mp.get_property("metadata/by-key/ARTIST") or 
-                   mp.get_property("metadata/by-key/artist") or 
-                   mp.get_property("metadata/by-key/Artist")
-                   
-    local time_pos = mp.get_property_number("time-pos")
-    local pause = mp.get_property_bool("pause")
-    
-    -- Format state text based on media type and pause state
-    local state_str = is_video and "Watching" or "Listening"
-    if pause then state_str = "Paused" end
-    
-    if artist then
-        state_str = "by " .. artist:sub(1, 100)
-        if pause then state_str = state_str .. " (Paused)" end
+    -- Format state text based on pause state
+    if pause then
+        state_str = state_str .. " (Paused)"
     end
 
     local ascii_progress = ""
 
     local activity = {
         type = is_video and 3 or 2, -- 3 = Watching, 2 = Listening
-        details = title:sub(1, 127),
-        state = state_str,
+        details = details_str:sub(1, 127),
+        state = state_str:sub(1, 127),
         assets = {
-            large_image = "mpv",
-            -- large_text is actually a subtitle, but also displays when you hover?
-            large_text = is_video and "mpv Media Player" or "mpv Audio Player",
+            large_image = is_plex and "plex" or "mpv",
+            large_text = is_plex
+                and (is_video and "Plex" or "Plex Audio")
+                or  (is_video and "mpv Media Player" or "mpv Audio Player"),
             small_image = pause and "pause" or "play",
             small_text = pause and "Paused" or "Active"
         }
@@ -242,7 +309,7 @@ local function update_presence()
     })
 end
 
-local function disconnect()
+disconnect = function()
     if is_windows and win_handle then
         kernel32.CloseHandle(win_handle)
         win_handle = nil
