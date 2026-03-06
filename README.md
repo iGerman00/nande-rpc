@@ -26,3 +26,15 @@ Some paths to try (Plex Desktop, will probably work on HTPC too though):
 - For Snap: `~/snap/plex-desktop/common/`
 - For AUR (Arch btw): `/opt/plex-desktop/resources/`
 - For macOS: `~/Library/Application Support/Plex/scripts/`
+
+## Alternatives
+
+If my "pure Lua, zero dependencies" approach doesn't work for you or if you are looking for nicer features like dynamic web-fetched cover art and such, check out these other fantastic projects by people who care much more than me:
+
+### For mpv
+* **[tnychn/mpv-discord](https://github.com/tnychn/mpv-discord)** 
+* **[goodtrailer/mpv-rich-presence](https://github.com/goodtrailer/mpv-rich-presence)** 
+* **[cniw/mpv-discordRPC](https://github.com/cniw/mpv-discordRPC)**
+
+### For Plex
+* **[phin05/discord-rich-presence-plex](https://github.com/phin05/discord-rich-presence-plex)** 
