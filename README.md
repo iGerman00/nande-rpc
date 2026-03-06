@@ -15,3 +15,14 @@ Current failure modes:
 - Linux/macOS are not tested at all
 - _Might_ leak _some_ data from Plex like a session ID or at worst a token, not tested but it does try to strip that stuff out
 - Might get a bit confused as to Watching/Listening state if a cover art is embedded in a song - probs could be fixed tho
+
+## Installation
+
+Drop it in your config dir's scripts directory - might need to make it.  
+Some paths to try (Plex Desktop, will probably work on HTPC too though):
+
+- For Windows: `%localappdata%/Plex/scripts`
+- For Flatpak: `~/.var/app/tv.plex.PlexDesktop/data/plex/`
+- For Snap: `~/snap/plex-desktop/common/`
+- For AUR (Arch btw): `/opt/plex-desktop/resources/`
+- For macOS: `~/Library/Application Support/Plex/scripts/`
