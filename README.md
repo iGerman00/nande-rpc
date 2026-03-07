@@ -15,7 +15,7 @@ Current failure modes:
 - Linux/macOS are not tested at all
 - Might get a bit confused as to Watching/Listening state if a cover art is embedded in a song - probs could be fixed tho
 
-If Plex somehow gets misidentified as a regular mpv client, it might publish the direct file name from Plex, like `file.mkv?X-Plex-Session-ID=12345678....&X-Plex-Token=secret`. This is a concern since it could expose secrets. I added a matcher to strip any URL params out period, but beware of this. The string is usually long enough to not actually include the token, but it's worth noting  
+If Plex somehow gets misidentified as a regular mpv client, it might publish the direct file name from Plex, like `file.mkv?X-Plex-Session-ID=12345678....&X-Plex-Token=secret`. This is a concern since it could expose secrets. I added a matcher to strip any URL params out period, but beware of this. The string is usually long enough to not actually include the token, but it's worth noting. I tested for it, and it never leaked anything even if I forcefully misidentified the client.
 
 ## Installation
 
