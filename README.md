@@ -13,7 +13,7 @@ Current failure modes:
 - Progress bar might be laggy, updates are pushed every second
 - Timer might tick away when paused, Discord things I guess
 - Linux/macOS are not tested at all
-- _Might_ leak _some_ data from Plex like a session ID or at worst a token, not tested but it does try to strip that stuff out
+- _Might_ leak _some_ data from Plex like a session ID or at worst a token, it does try to strip it out so hopefully not
 - Might get a bit confused as to Watching/Listening state if a cover art is embedded in a song - probs could be fixed tho
 
 ## Installation
