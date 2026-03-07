@@ -13,8 +13,9 @@ Current failure modes:
 - Progress bar might be laggy, updates are pushed every second
 - Timer might tick away when paused, Discord things I guess
 - Linux/macOS are not tested at all
-- _Might_ leak _some_ data from Plex like a session ID or at worst a token, it does try to strip it out so hopefully not
 - Might get a bit confused as to Watching/Listening state if a cover art is embedded in a song - probs could be fixed tho
+
+If Plex somehow gets misidentified as a regular mpv client, it might publish the direct file name from Plex, like `file.mkv?X-Plex-Session-ID=12345678....&X-Plex-Token=secret`. This is a concern since it could expose secrets. I added a matcher to strip any URL params out period, but beware of this. The string is usually long enough to not actually include the token, but it's worth noting  
 
 ## Installation
 
